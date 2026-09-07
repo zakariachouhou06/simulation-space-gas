@@ -4,3 +4,8 @@ https://en.wikipedia.org/wiki/Interstellar_medium
 8.9% is helium
 0.1% is metals
 ---------------
+papers:
+GADGET-2 paper (Springel 2005) — the reference implementation of tree-PM gravity + SPH, extremely widely used and well documented.
+Phantom (Price et al.) — SPH code built specifically for star/planet formation, good for seeing sink-particle implementation.
+REBOUND — much simpler pure-gravity N-body code (no hydro), good as a clean reference for tree codes and integrators without the SPH complexity on top.
+Look up "Bonnor-Ebert sphere" for realistic initial density profiles for a collapsing cloud, rather than starting from a uniform sphere.
