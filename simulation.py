@@ -25,8 +25,10 @@ mass_arr = np.empty(n)
 
 animation_pos_matrix = []
 
+
 #text
 
+#initialization
 
 #update loop 
 for frame in range(frames):
@@ -40,10 +42,11 @@ for frame in range(frames):
             else:
                 r_vec = pos_matrix[j]-pos_matrix[i] #vector from particle i to particle j 
                 r_norm = np.linalg.norm(r_vec)
-                acc_r += (r_vec/r_norm)* G * mass_arr[j] / (r_norm**2 + epsilon**2)
+                acc_r += (r_vec/r_norm)* G / (r_norm**2 + epsilon**2)
         acc_matrix[i] = acc_r
     vel_matrix += acc_matrix*dt
     pos_matrix += vel_matrix*dt
+    pos_matrix = pos_matrix % 1
     
     
         
