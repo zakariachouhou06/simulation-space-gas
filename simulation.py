@@ -19,7 +19,7 @@ G = 6.6743 *10 ** -11 #units m^3 kg^-1 s^-2
 
 
 pos_matrix = np.random.rand(n, 3)
-vel_matrix = np.empty((n, 3))
+vel_matrix = np.random.rand(n, 3)
 acc_matrix = np.empty((n, 3))
 mass_arr = np.empty(n)
 
