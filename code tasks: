@@ -1,0 +1,12 @@
+code:
+-gravity met Barnes-Hut tree code/ Particle-Mesh (PM)/ Tree-PM / P3M hybrids:
+-sink particles als een area grote dichtheid heeft	:
+-magneetveld/ionen met snelheid				:
+-clumping into multiple planets 			:
+-angular momentum??					:
+-N-deeltjes model					:	Oscar
+-temperature						:	Oscar
+-leapfrog algoritme					:	Oscar 
+-pressure (hydrodynamics)/collisions in model		:	Zakaria
+-animatie (deeltjes, dichtheid, doos)			:	Hamza
+-
