@@ -1,0 +1,21 @@
+# --- Simulation Setup ---
+dt = 0.02
+n_steps = 1000
+G_M = 1000.0
+
+pos = np.array([100.0, 20.0, 30.0])
+vel = np.array([-0.5, 2.5, 1.2])
+
+def gravitational_acceleration_3d(pos, G_M=1000.0):
+    r = np.linalg.norm(pos)
+    return -G_M * pos / (r**3)
+
+trajectory = np.zeros((n_steps, 3))
+acc = gravitational_acceleration_3d(pos, G_M)
+
+for i in range(n_steps):
+    trajectory[i] = pos
+    vel_half = vel + 0.5 * acc * dt
+    pos = pos + vel_half * dt
+    acc = gravitational_acceleration_3d(pos, G_M)
+    vel = vel_half + 0.5 * acc * dt
