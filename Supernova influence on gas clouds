@@ -1,0 +1,24 @@
+1. Fysische werking:
+  -Compressie (Stersamenballing):
+    De schok verhoogt de dichtheid ($\rho$) van de wolk explosief. 
+    Hierdoor daalt de Jeans-massa ($M_J$), wint de zwaartekracht van de interne gasdruk, en stort het gas in tot nieuwe sterren (Triggered Star Formation).
+  -Destructie (Verdamping):
+    Als de schokgolf te snel is of de wolk te ijl, zorgen verhitting en turbulentie (Rayleigh-Taylor instabiliteiten) ervoor dat de wolk uit elkaar getrokken wordt en verdampt.
+
+2. Belangrijke formules
+  Het Schokfront (Rankine-Hugoniot Sprongcondities):
+    $$\frac{\rho_2}{\rho_1} = \frac{\gamma + 1}{\gamma - 1}$$
+
+  Hydrodynamica:
+    Massa: $\frac{\partial \rho}{\partial t} + \nabla \cdot (\rho \vec{u}) = 0$
+    Impuls: $\frac{\partial (\rho \vec{u})}{\partial t} + \nabla \cdot \left( \rho \vec{u} \otimes \vec{u} + P \mathbf{I} \right) = -\rho \nabla \Phi$
+    Energie: $P = (\gamma - 1) \rho \epsilon$
+
+  Instorting & zwaartekracht (Jeans-massa $M_J$)
+    De minimale massa die nodig is voor zwaartekrachtinval (stervorming):
+        $$M_J \propto \frac{T^{3/2}}{\rho^{1/2}}$$
+
+  Tijdschaal van Wolk-destructie (Cloud-Crushing Time)
+    $$t_{cc} = \frac{R_{\text{wolk}}}{v_{\text{shock}}} \left(\frac{\rho_{\text{wolk}}}{\rho_{\text{omgeving}}}\right)^{1/2}$$
+
+Sinkparticle?
