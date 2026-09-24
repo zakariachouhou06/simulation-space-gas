@@ -4,6 +4,7 @@ Created on Mon Sep  7 15:20:01 2026
 
 @author: oscar
 """
+
 #libs
 import matplotlib.pyplot as plt
 import numpy as np
@@ -11,17 +12,17 @@ import matplotlib.animation as animation
 
 
 #data
-frames = 100
-dt = 0.1
-n = 100
+frames = 1000
+dt = 0.01
+n = 500
 epsilon = 0.1
-G = 6.6743 *10 ** -11 #units m^3 kg^-1 s^-2
+G = 0.001 #units m^3 kg^-1 s^-2 #6.6743 *10 ** -11 #units m^3 kg^-1 s^-2
 
 
-pos_matrix = np.random.rand(n, 3)
-vel_matrix = np.random.rand(n, 3)
-acc_matrix = np.empty((n, 3))
-mass_arr = np.empty(n)
+pos_arr = np.random.rand(n, 3)
+vel_arr = np.zeros((n, 3))
+acc_arr = np.empty((n, 3))
+mass_arr = np.ones(n)
 
 animation_pos_matrix = []
 
@@ -32,21 +33,18 @@ animation_pos_matrix = []
 
 #update loop 
 for frame in range(frames):
-    animation_pos_matrix.append(pos_matrix)
+    animation_pos_matrix.append(pos_arr)
+    #difference matrix between points
+    r_diff = pos_arr[np.newaxis, :, :]- pos_arr[:, np.newaxis, :]
     
-    for i in range(n):
-        acc_r =  np.array([0,0,0],dtype = float)  #resterende kracht wordt hier onder berekened
-        for j in range(n):
-            if i == j:
-                continue #check if you not take the same point to avoid x/0
-            else:
-                r_vec = pos_matrix[j]-pos_matrix[i] #vector from particle i to particle j 
-                r_norm = np.linalg.norm(r_vec)
-                acc_r += (r_vec/r_norm)* G / (r_norm**2 + epsilon**2)
-        acc_matrix[i] = acc_r
-    vel_matrix += acc_matrix*dt
-    pos_matrix += vel_matrix*dt
-    pos_matrix = pos_matrix % 1
+    dist_sq = np.sum(r_diff**2, axis=-1) + epsilon**2
+    np.fill_diagonal(dist_sq, np.inf)
+    inv_dist_cube = dist_sq**(-1.5)
+    term = mass_arr[np.newaxis, :, np.newaxis] * r_diff * inv_dist_cube[:, :, np.newaxis]
+    acc_arr = G * np.sum(term, axis=1)
+    vel_arr += acc_arr*dt
+    pos_arr += vel_arr*dt
+    pos_arr = pos_arr % 1  
     
     
         
