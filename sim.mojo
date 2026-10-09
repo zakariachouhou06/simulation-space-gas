@@ -1,9 +1,11 @@
 from std.python import Python, PythonObject
 from std.random import seed, rand, random_ui64,random_si64
-from std.memory import Pointer, ArcPointer
+from std.memory import Pointer, ArcPointer, alloc, Layout
 from tree import tree_node, build_tree
 from std.math import sqrt
 from spatial import spatial_maker, extract_octant_bits, ParticleKey
+from std.os import abort
+from std.python.bindings import PythonModuleBuilder
 
 struct Simulation:
     # State variables
@@ -186,7 +188,7 @@ struct Simulation:
             return (v1, v2)
 
     def get_positions(self) raises -> PythonObject:
-        var result = self.np.empty([self.n, 3], dtype=self.np.float32)
+        var result = self.np.empty([self.n, 3], dtype=self.np.int32)
         for i in range(self.n):
             result[i, 0] = self.pos[i][0]
             result[i, 1] = self.pos[i][1]
@@ -270,3 +272,65 @@ def create_pos_vector_int(n: Int) -> List[SIMD[DType.int32, 4]]:
         vec[i][3] = Int32(i)
 
     return vec^
+
+# --- PYTHON MODULE BUILDER INTEGRATION ---
+
+@export
+def PyInit_sim() abi("C") -> PythonObject:
+    try:
+        var m = PythonModuleBuilder("sim")
+        m.def_function[create_simulation]("create_simulation")
+        m.def_function[step]("step")
+        m.def_function[get_positions]("get_positions")
+        m.def_function[destroy_simulation]("destroy_simulation")
+        return m.finalize()
+    except e:
+        abort(String("error creating Python Mojo module:", e))
+
+def create_simulation(args: PythonObject, kwargs: PythonObject) raises -> PythonObject:
+    # Ensure all required positional arguments are provided
+    if len(args) < 9:
+        raise Error("create_simulation requires 9 positional arguments: n, c1, epsilon, g, theta, interaction_range, radius, cof_of_restitution, dt")
+
+    var n = Int(py=args[0])
+    var c1 = Float32(py=args[1])
+    var epsilon = Float32(py=args[2])
+    var g = Float32(py=args[3])
+    var theta = Float32(py=args[4])
+    var interaction_range = Int32(py=args[5])
+    var radius = Float32(py=args[6])
+    var cof_of_restitution = Float32(py=args[7])
+    var dt = Float32(py=args[8])
+
+    # Allocate memory, leak ownership so it persists for Python, then write to it
+    var allocation = alloc(Layout[Simulation].single())
+    var ptr = allocation^.unsafe_leak()
+    ptr.unsafe_write(
+        Simulation(
+            n=n, c1=c1, epsilon=epsilon, g=g, theta=theta,
+            interaction_range=interaction_range, radius=radius,
+            cof_of_restitution=cof_of_restitution, dt=dt
+        )
+    )
+    return PythonObject(Int(ptr))
+
+def step(args: PythonObject) raises -> PythonObject:
+    var handle = Int(py=args[0])
+    var ptr = Pointer[Simulation, MutUntrackedOrigin](unsafe_from_address=handle)
+    ptr[].step()
+    return PythonObject()
+
+def get_positions(args: PythonObject) raises -> PythonObject:
+    var handle = Int(py=args[0])
+    var ptr = Pointer[Simulation, MutUntrackedOrigin](unsafe_from_address=handle)
+    return ptr[].get_positions()
+
+def destroy_simulation(args: PythonObject) raises -> PythonObject:
+    var handle = Int(py=args[0])
+    var ptr = Pointer[Simulation, MutUntrackedOrigin](unsafe_from_address=handle)
+
+    # Safely deinitialize the struct and free the heap memory
+    ptr.unsafe_deinit_pointee()
+    ptr.unsafe_free()
+
+    return PythonObject()
