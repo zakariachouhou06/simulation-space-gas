@@ -3,12 +3,14 @@ from std.random import seed, rand, random_ui64
 from std.memory import Pointer, ArcPointer, bitcast
 
 struct ParticleKey(Copyable, ImplicitlyCopyable):
-    var key: UInt64
     var vector: SIMD[DType.int32, 4]
+    var key: UInt64
+    var id: Int
 
-    def __init__(out self, key: UInt64, vector: SIMD[DType.int32, 4]):
+    def __init__(out self, vector: SIMD[DType.int32, 4], key: UInt64, id: Int):
         self.key = key
         self.vector = vector
+        self.id = id
 
 def get_key(v: SIMD[DType.int32, 4]) -> UInt64:
     """Interleaves the first 3 components (x, y, z) into a single code.
@@ -121,7 +123,7 @@ def spatial_maker(
     keys.reserve(n)
     for i in range(n):
         var key = get_key(pos[i])
-        keys.append(ParticleKey(key, pos[i]))
+        keys.append(ParticleKey(pos[i], key, i))
     radix_sort_u64(keys)
     #var lookup_table = populate_coarse_entries(keys)
     return keys^

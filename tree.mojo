@@ -146,8 +146,8 @@ def build_tree(mut keys: List[ParticleKey]) -> List[tree_node]:
         level=0,
         index_start=UInt64(0),
         index_end=UInt64(len(keys)),
-        min_corner=SIMD[DType.int32, 4](-2147483648),
-        max_corner=SIMD[DType.int32, 4](2147483647)
+        min_corner=SIMD[DType.int32, 4](-2147483648,-2147483648,-2147483648,0),
+        max_corner=SIMD[DType.int32, 4](2147483647,2147483647,2147483647,0)
     )
 
     var all_nodes = List[tree_node]()
