@@ -51,7 +51,7 @@ struct Simulation:
         n: Int,
         c1: Float32,
         epsilon: Float32 = 400.0,
-        g: Float32 = 2147483647.0,
+        g: Float32 = Float32(0.3*2147483647.0**3),
         theta: Float32 = 0.04,
         interaction_range_agr: Float32 = 0.9, #number of the max theoretical range low = better preformance but more missed collisions
         radius: Float32 = 0.001,
@@ -100,11 +100,11 @@ struct Simulation:
 
     def run_timestep(mut self):
         var timer = timer()
-        timer.click()
+        #timer.click()
         var keys = spatial_maker(self.pos)
-        timer.tak("sort")
+        #timer.tak("sort")
         var tree = build_tree(keys)
-        timer.tak("tree")
+        #timer.tak("tree")
         var interaction_pairs = List[Tuple[Int, Int]]()
         var collision_pairs = List[Tuple[Int, Int, SIMD[DType.float32, 4], SIMD[DType.float32, 4]]]() # intermidate step because updating the velocities for each particle is expensive
         # Updating accelerations
@@ -112,23 +112,23 @@ struct Simulation:
             var p_vec = keys[i].vector # Note index 3 is the id
             var id = keys[i].id
             self.acc[id] = self.compute_interactions(tree, 0, i,id,p_vec, keys, interaction_pairs)
-        timer.tak("iterations")
+        #timer.tak("iterations")
 
         # Updating velocities
         for i in range(len(self.vel)):
             self.vel[i] += self.dt * self.acc[i]
-        timer.tak("vel")
+        #timer.tak("vel")
         # Updating velocities from collisions
-        print("interaction_pairs:")
-        print(len(interaction_pairs))
+        #print("interaction_pairs:")
+        #print(len(interaction_pairs))
         for pair in interaction_pairs:
             self.handle_interaction(keys[pair[0]].vector, keys[pair[1]].vector, self.vel[pair[0]], self.vel[pair[1]], collision_pairs, pair)
-        print("collision_pairs:")
-        print(len(collision_pairs))
+        #print("collision_pairs:")
+        #print(len(collision_pairs))
         for collision_pair in collision_pairs:
             self.vel[collision_pair[0]]=collision_pair[2]
             self.vel[collision_pair[1]]=collision_pair[3]
-        timer.tak("interactions")
+        #timer.tak("interactions")
         # Updating positions and time
         interaction_pairs.clear()
         collision_pairs.clear()
@@ -291,7 +291,7 @@ def create_pos_vector_int(n: Int) -> List[SIMD[DType.int32, 4]]:
 
     # Fill the list with random Int32 values within the specified bounds
     for i in range(total_values):
-        raw_data[i] = Int32(random_si64(-1073741824, 1073741824))
+        raw_data[i] = Int32(random_si64(-10737418, 10737418))
 
     var vec = List[SIMD[DType.int32, 4]]()
     vec.resize(n, SIMD[DType.int32, 4](0, 0, 0, 0))
@@ -335,7 +335,7 @@ def create_simulation(args: PythonObject, kwargs: PythonObject) raises -> Python
     var radius = Float32(py=args[6])
     var cof_of_restitution = Float32(py=args[7])
     var dt = Float32(py=args[8])
-
+    print(g)
     # Allocate memory, leak ownership so it persists for Python, then write to it
     var allocation = alloc(Layout[Simulation].single())
     var ptr = allocation^.unsafe_leak()
@@ -359,6 +359,7 @@ def get_positions(args: PythonObject) raises -> PythonObject:
     var ptr = Pointer[Simulation, MutUntrackedOrigin](unsafe_from_address=handle)
     return ptr[].get_positions()
 
+
 def destroy_simulation(args: PythonObject) raises -> PythonObject:
     var handle = Int(py=args[0])
     var ptr = Pointer[Simulation, MutUntrackedOrigin](unsafe_from_address=handle)
@@ -369,17 +370,18 @@ def destroy_simulation(args: PythonObject) raises -> PythonObject:
 
     return PythonObject()
 
-def main() raises:
-    print("Initializing simulation...")
-
-    # Create a simulation with 100 particles and a velocity scale of 1.0
-    var sim = Simulation(n=1000, c1=1.0)
-
-    print("Running simulation steps...")
-
-    # Run for 5 steps to test timing output and execution
-    for i in range(5):
-        print("\n--- Step", i, "---")
-        sim.step()
-
-    print("Simulation completed successfully!")
+#def main() raises:
+#    print("Initializing simulation...")
+#
+#    # Create a simulation with 100 particles and a velocity scale of 1.0
+#    var sim = Simulation(n=1000, c1=1.0)
+#
+#    print("Running simulation steps...")
+#
+#    # Run for 5 steps to test timing output and execution
+#    for i in range(5):
+#        print("\n--- Step", i, "---")
+#        sim.step()
+#        print(sim.pos[0])
+#        print(sim.vel[0])
+#        print(sim.acc[0])

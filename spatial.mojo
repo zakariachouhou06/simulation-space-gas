@@ -45,9 +45,7 @@ def radix_sort_u64(mut keys: List[ParticleKey]):
     var n = len(keys)
     if n <= 1:
         return
-    var temp = List[UInt64](capacity=n)
-    for _ in range(n):
-        temp.append(0)
+    var temp = List[ParticleKey](unsafe_uninit_length=n)
 
     # Process each byte (8 passes total for 64 bits)
     for shift in range(0, 64, 8):
@@ -70,12 +68,13 @@ def radix_sort_u64(mut keys: List[ParticleKey]):
         # 3. Place elements into temporary array stably
         for i in range(n):
             var byte_val = UInt64((keys[i].key >> UInt64(shift)) & 0xFF)
-            temp[count[byte_val]] = keys[i].key
+            temp[count[byte_val]] = keys[i]
             count[byte_val] += 1
 
         # 4. Copy back to the original array for the next pass
         for i in range(n):
-            keys[i].key = temp[i]
+            keys[i] = temp[i]
+
 
 def extract_octant_bits(key: UInt64, level: UInt32) -> UInt64:
     var bit = (key[0] >> 64 - 3*(UInt64(level)+1)) & 0b0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0111
@@ -137,12 +136,3 @@ def print_binary(val: UInt64):
         s += String(Int(bit))
     print(s)
 #test
-#def main():
-#        # Test a vector with positive, negative, and zero coordinates: (x, y, z, padding)
-#        var test_vector = SIMD[DType.int32, 4](-2147483648, 0, 1073741825, 0)
-#
-#        var key = get_key(test_vector)
-#
-#        print("Coordinates: x=0, y=-2,147,483,648, z=-2,147,483,648")
-#        print("Generated Morton Key (UInt64):")
-#        print_binary(key)
