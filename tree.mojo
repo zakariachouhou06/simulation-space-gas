@@ -69,14 +69,18 @@ struct tree_node:
         self.center = calculate_center(self.min_corner, self.max_corner)
 
     def calculate_center_of_mass(mut self, positions: List[SIMD[DType.int32, 4]], mass: List[Float32]) -> Tuple[SIMD[DType.int32, 4], Float32]:
-        var total_mass: Float32 = 0
-        var center_of_mass = SIMD[DType.float32, 4](0)
-        for i in range(len(mass)):
-            total_mass += mass[i]
-            var r = positions[i] - self.min_corner
+        """This function calculates the center of mass. Inputs: Positions a list of coordinates, Mass defunct but I leave this in for later. """
+
+        var total_mass: Float32 = 0 #initialize
+        var center_of_mass = SIMD[DType.float32, 4](0) #initialize
+
+        for i in range(len(mass)): #loop over every particle
+            total_mass += mass[i] # add the mass to the total mass
+            var r = positions[i] - self.center # subtract the center because of precision reasons NOTE doesn't overflow if pos is correct
             center_of_mass += r.cast[DType.float32]() * mass[i]
-        center_of_mass = center_of_mass / total_mass
-        return (center_of_mass.cast[DType.int32]() + self.min_corner, total_mass)
+
+        center_of_mass = center_of_mass / total_mass # division step
+        return (center_of_mass.cast[DType.int32]() + self.center, total_mass) # don't forget to add center back in we removed in previous line
 
     def divide(mut self, self_index: Int, keys: List[ParticleKey]) -> List[tree_node]:
             var new_children = List[tree_node]()
@@ -138,7 +142,7 @@ struct tree_node:
 
 
 def calculate_center(min_corner: SIMD[DType.int32, 4], max_corner: SIMD[DType.int32, 4]) -> SIMD[DType.int32, 4]:
-    return min_corner + ((max_corner - min_corner) >> 1)
+    return min_corner + (max_corner >> 1) - (min_corner >> 1)
 
 def build_tree(mut keys: List[ParticleKey]) -> List[tree_node]:
     var root = tree_node(

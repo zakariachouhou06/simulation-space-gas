@@ -6,18 +6,20 @@ import numpy as np
 class Simulation:
     def __init__(
         self,
-        n = 3000,
+        n = 20,
         c1 = 0,
         epsilon = 500000,
-        g = 0.003*2147483647.0**3,
-        theta = 0.04,
-        interaction_range_agr = 0.9,
-        radius = 1000.0,
-        cof_of_restitution = 0.5,
+        g = 0.0003*2147483647.0**3,
+        theta = 0.004,
+        interaction_range_agr = 1,
+        radius = 100000.0,
+        cof_of_restitution = 0.7,
         dt = 0.000004
     ):
         # Pack parameters into the tuple/dict structure expected by Mojo
         args = (n, c1, epsilon, g, theta, interaction_range_agr, radius, cof_of_restitution, dt)
+        self.radius = radius
+        self.dt = dt
         kwargs = {}
         self.ptr = sim.create_simulation(args, kwargs)
 
@@ -34,6 +36,12 @@ class Simulation:
         if getattr(self, "ptr", None) is not None:
             sim.destroy_simulation((self.ptr,))
             self.ptr = None
+
+    def energy(self):
+        return sim.energy((self.ptr,))
+
+    def collision(self):
+        return sim.collision((self.ptr,))
 
     def __del__(self):
         try:
