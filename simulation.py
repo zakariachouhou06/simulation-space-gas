@@ -6,15 +6,15 @@ import numpy as np
 class Simulation:
     def __init__(
         self,
-        n = 20,
-        c1 = 0,
+        n = 4000,
+        c1 = 1000,
         epsilon = 500000,
-        g = 0.0003*2147483647.0**3,
+        g = 0.3*2147483647.0**3,
         theta = 0.004,
         interaction_range_agr = 1,
-        radius = 100000.0,
-        cof_of_restitution = 0.7,
-        dt = 0.000004
+        radius = 1000000.0,
+        cof_of_restitution = 0.95,
+        dt = 0.0004
     ):
         # Pack parameters into the tuple/dict structure expected by Mojo
         args = (n, c1, epsilon, g, theta, interaction_range_agr, radius, cof_of_restitution, dt)

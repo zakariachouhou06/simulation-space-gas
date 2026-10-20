@@ -203,42 +203,4 @@ def build_tree(mut keys: List[ParticleKey]) -> List[tree_node]:
             current_node = all_nodes[current_node].parent
 
     return all_nodes^
-"""
-def print_tree_structure(tree_nodes: List[tree_node]):
-    print("\n========================= TREE NODE INSPECTOR GRAPH =========================")
-    for i in range(len(tree_nodes)):
-        # Format node basic info
-        print("Node ID: " + String(i) + " | Parent: " + String(tree_nodes[i].parent) + " | Level: " + String(tree_nodes[i].level))
-        print("  ├── Is Leaf: " + ("True" if tree_nodes[i].is_leaf else "False"))
-        print("  ├── Particle Range: [" + String(tree_nodes[i].index_start) + " -> " + String(tree_nodes[i].index_end) + "] (Count: " + String(tree_nodes[i].number_of_particles) + ")")
 
-        # Format children list
-        var children_str = ""
-        for c in range(len(tree_nodes[i].children)):
-            children_str += String(tree_nodes[i].children[c])
-            if c < len(tree_nodes[i].children) - 1:
-                children_str += ", "
-        print("  └── Children IDs: [" + children_str + "]")
-        print("-" * 77)
-def main() raises:
-    print("=== Starting Octree & Spatial Tree Tests ===")
-
-    # 1. Create mock ParticleKeys for testing build_tree and division
-    var pos: List[SIMD[DType.int32, 4]]=  List[SIMD[DType.int32, 4]]()
-    for i in range(100):
-        var mock_vector = SIMD[DType.int32, 4](Int32(i * 5), Int32(i * 3), Int32(i * 2), 0)
-        pos.append(mock_vector)
-    var test_keys = spatial_maker(pos)
-
-
-    print("Test 1: Created mock particle keys. Total particles:", len(test_keys))
-
-    # 2. Build the tree
-    var tree_nodes = build_tree(test_keys)
-    print("Test 2: build_tree executed successfully. Total nodes created:", len(tree_nodes))
-
-    # 3. Print the visual graph structure for logic inspection
-    print_tree_structure(tree_nodes)
-
-    print("=== All Tests & Inspection Completed ===")
-"""
