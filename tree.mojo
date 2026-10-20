@@ -5,7 +5,7 @@ from std.memory import Pointer, ArcPointer, UnsafePointer
 from std.collections import List
 #file structure
 import spatial
-from spatial import CoarseEntry, ParticleKey, get_key, get_bit, extract_octant_bits
+from spatial import CoarseEntry, ParticleKey, get_key, get_bit, extract_octant_bits, spatial_maker
 
 comptime MAX_MULTIPOLE_TERMS = 9
 
@@ -123,8 +123,8 @@ struct tree_node:
                 for iy in range(2):
                     for iz in range(2):
                         var mask_vector = SIMD[DType.int32, 4](Int32(ix), Int32(iy), Int32(iz), Int32(0))
-                        var min_corner_child = self.min_corner + self.center * mask_vector
-                        var max_corner_child = self.center + self.center * mask_vector
+                        var min_corner_child = self.min_corner + (self.center - self.min_corner) * mask_vector
+                        var max_corner_child = self.center + (self.center - self.min_corner) * mask_vector
 
                         # Instantiate child
                         var child = tree_node(
@@ -150,8 +150,8 @@ def build_tree(mut keys: List[ParticleKey]) -> List[tree_node]:
         level=0,
         index_start=UInt64(0),
         index_end=UInt64(len(keys)),
-        min_corner=SIMD[DType.int32, 4](-2147483648,-2147483648,-2147483648,0),
-        max_corner=SIMD[DType.int32, 4](2147483647,2147483647,2147483647,0)
+        min_corner=SIMD[DType.int32, 4](-1073741824, -1073741824, -1073741824, 0),
+        max_corner=SIMD[DType.int32, 4](1073741823, 1073741823, 1073741823, 0)
     )
 
     var all_nodes = List[tree_node]()
@@ -203,3 +203,42 @@ def build_tree(mut keys: List[ParticleKey]) -> List[tree_node]:
             current_node = all_nodes[current_node].parent
 
     return all_nodes^
+"""
+def print_tree_structure(tree_nodes: List[tree_node]):
+    print("\n========================= TREE NODE INSPECTOR GRAPH =========================")
+    for i in range(len(tree_nodes)):
+        # Format node basic info
+        print("Node ID: " + String(i) + " | Parent: " + String(tree_nodes[i].parent) + " | Level: " + String(tree_nodes[i].level))
+        print("  ├── Is Leaf: " + ("True" if tree_nodes[i].is_leaf else "False"))
+        print("  ├── Particle Range: [" + String(tree_nodes[i].index_start) + " -> " + String(tree_nodes[i].index_end) + "] (Count: " + String(tree_nodes[i].number_of_particles) + ")")
+
+        # Format children list
+        var children_str = ""
+        for c in range(len(tree_nodes[i].children)):
+            children_str += String(tree_nodes[i].children[c])
+            if c < len(tree_nodes[i].children) - 1:
+                children_str += ", "
+        print("  └── Children IDs: [" + children_str + "]")
+        print("-" * 77)
+def main() raises:
+    print("=== Starting Octree & Spatial Tree Tests ===")
+
+    # 1. Create mock ParticleKeys for testing build_tree and division
+    var pos: List[SIMD[DType.int32, 4]]=  List[SIMD[DType.int32, 4]]()
+    for i in range(100):
+        var mock_vector = SIMD[DType.int32, 4](Int32(i * 5), Int32(i * 3), Int32(i * 2), 0)
+        pos.append(mock_vector)
+    var test_keys = spatial_maker(pos)
+
+
+    print("Test 1: Created mock particle keys. Total particles:", len(test_keys))
+
+    # 2. Build the tree
+    var tree_nodes = build_tree(test_keys)
+    print("Test 2: build_tree executed successfully. Total nodes created:", len(tree_nodes))
+
+    # 3. Print the visual graph structure for logic inspection
+    print_tree_structure(tree_nodes)
+
+    print("=== All Tests & Inspection Completed ===")
+"""
