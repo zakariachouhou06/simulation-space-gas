@@ -8,6 +8,9 @@ from std.os import abort
 from std.python.bindings import PythonModuleBuilder
 from std.benchmark import run, keep
 from std.time import global_perf_counter_ns
+comptime int_minhalf = Int32(-1073741824)
+comptime int_maxhalf = Int32(1073741823)
+
 struct timer:
     var time: UInt64
     var last_time: UInt64
@@ -83,9 +86,14 @@ struct Simulation:
         except:
             print("numpy doesn't work you stupid")
             self.np = PythonObject()
+
+        #initialize interaction range
+        self.interaction_range= Int64(self.dt* c1 * interaction_range_agr)
+        self.interaction_range_sq = Int64(self.dt*self.dt*c1 * interaction_range_agr * c1 * interaction_range_agr)
+
+        #initialize vel
         var vel_initial = c1 * (self.np.random.rand(n, 3) - 0.5)
-        self.interaction_range= Int64(c1 * interaction_range_agr)
-        self.interaction_range_sq = Int64(c1 * interaction_range_agr * c1 * interaction_range_agr)
+        print(vel_initial)
         self.vel = create_vel_vector_float(n, vel_initial)
 
         # Accelerations
@@ -99,39 +107,41 @@ struct Simulation:
         self.run_timestep()
 
     def run_timestep(mut self):
-        var timer = timer()
-        #timer.click()
+
+        #make a sorted pos list keys
         var keys = spatial_maker(self.pos)
-        #timer.tak("sort")
         var tree = build_tree(keys)
-        #timer.tak("tree")
-        var interaction_pairs = List[Tuple[Int, Int]]()
-        var collision_pairs = List[Tuple[Int, Int, SIMD[DType.float32, 4], SIMD[DType.float32, 4]]]() # intermidate step because updating the velocities for each particle is expensive
+        #initialize
+        var posible_collisions_pairs = List[Tuple[Int, Int]]()
         # Updating accelerations
         for i in range(len(keys)):
             var p_vec = keys[i].vector # Note index 3 is the id
             var id = keys[i].id
-            self.acc[id] = self.compute_interactions(tree, 0, i,id,p_vec, keys, interaction_pairs)
-        #timer.tak("iterations")
+            self.acc[id] = self.compute_interactions(tree, 0, i,id,p_vec, keys, posible_collisions_pairs)
 
         # Updating velocities
         for i in range(len(self.vel)):
             self.vel[i] += self.dt * self.acc[i]
-        #timer.tak("vel")
+        
+        #var vmean = SIMD[DType.float32, 4](0)
+        #for i in range(len(self.vel)):
+        #    vmean += self.vel[i]
+        #vmean = vmean / Float32(len(self.vel))
+
+        #for i in range(len(self.vel)):
+        #    self.vel[i] -= vmean
         # Updating velocities from collisions
-        #print("interaction_pairs:")
-        #print(len(interaction_pairs))
-        for pair in interaction_pairs:
-            self.handle_interaction(keys[pair[0]].vector, keys[pair[1]].vector, self.vel[pair[0]], self.vel[pair[1]], collision_pairs, pair)
+        
+        for pair in posible_collisions_pairs:
+            self.handle_interaction(pair[0], pair[1])
+        
         #print("collision_pairs:")
         #print(len(collision_pairs))
-        for collision_pair in collision_pairs:
-            self.vel[collision_pair[0]]=collision_pair[2]
-            self.vel[collision_pair[1]]=collision_pair[3]
+
+        #print("norm:",self.norm(self.pos[0],self.pos[1]), "radius", self.radius)
         #timer.tak("interactions")
         # Updating positions and time
-        interaction_pairs.clear()
-        collision_pairs.clear()
+        posible_collisions_pairs.clear()
 
         var max_val2: Float32 = 0.0
 
@@ -140,11 +150,10 @@ struct Simulation:
             if magnitude2 > max_val2:
                 max_val2 = magnitude2
 
-        self.interaction_range_sq = Int64(max_val2 * self.interaction_range_agr * self.interaction_range_agr)
-        self.interaction_range = Int64(sqrt(self.interaction_range_sq))
+        self.interaction_range_sq = Int64(self.dt* self.dt * max_val2 * max_val2 * self.interaction_range_agr * self.interaction_range_agr)
+        self.interaction_range = Int64(sqrt(self.dt* max_val2 * self.interaction_range_agr))
 
-        for i in range(len(self.pos)):
-            self.pos[i] += (self.dt * self.vel[i]).cast[DType.int32]()
+        self.pos_step()
         self.t += self.dt
 
 
@@ -177,20 +186,20 @@ struct Simulation:
         var diff = tree[node_index].center-particle_position #difference between particle and non particle
         var d_2 = (diff.cast[DType.int64]()*diff.cast[DType.int64]()).reduce_add() # we have to cast to int 64 because it can overflow
 
-        if s*s * self.theta_rcp_sq > d_2: #rewriting of the equation to avoid division
-                if d_2 < self.interaction_range_sq:
-                    for i in range(tree[node_index].number_of_particles):
-                        var p2_id = Int(keys[tree[node_index].index_start + i].id)
-                        if p2_id < particle_id:
-                            interaction_pairs.append((p2_id, particle_id))
+        if True:#Float64(s)*Float64(s) * Float64(self.theta_rcp_sq) > Float64(d_2): #rewriting of the equation to avoid division s*s * self.theta_rcp_sq > d_2
 
                 var acc_sum = SIMD[DType.float32, 4](0, 0, 0, 0)
                 if tree[node_index].child_initialized == True:
-                    for child in tree[node_index].children:
+                    var children = tree[node_index].children.copy()
+
+                    for child in children:
                         acc_sum += self.compute_interactions(tree, child, particle_id_keys,particle_id, particle_position, keys, interaction_pairs)
                 else:
                     for i in range(tree[node_index].number_of_particles):
                         if Int(tree[node_index].index_start + i) != particle_id_keys:
+                            var p2_id = Int(keys[tree[node_index].index_start + i].id)
+                            if p2_id < particle_id:
+                                interaction_pairs.append((p2_id, particle_id))
                             acc_sum += self.calculate_gravitational_acceleration(
                                 1.0,
                                 particle_position,
@@ -203,26 +212,87 @@ struct Simulation:
                 particle_position,
                 tree[node_index].center_of_mass)
 
-    def handle_interaction(
-        self,
-        r1: SIMD[DType.int32, 4],
-        r2: SIMD[DType.int32, 4],
-        v1: SIMD[DType.float32, 4],
-        v2: SIMD[DType.float32, 4],
-        mut collision_pairs : List[Tuple[Int, Int, SIMD[DType.float32, 4], SIMD[DType.float32, 4]]],
-        pair: Tuple[Int, Int]
-        ):
-        var dv = v2 - v1
-        var dr = (r2 - r1).cast[DType.float32]()
-        var dv_mag_sq = (dv * dv).reduce_add()
-        var dvdotdr = (dv * dr).reduce_add()
+    def handle_interaction(mut self, a: Int, b: Int):
+        var dv32 = self.vel[b] - self.vel[a]
+        var dv = dv32.cast[DType.float64]()
+        var dr = (self.pos[b].cast[DType.int64]() - self.pos[a].cast[DType.int64]()).cast[DType.float64]()
 
-        if (- dvdotdr  < self.dt * dv_mag_sq) & (- dvdotdr  > 0.0) & (dv_mag_sq != 0.0): #checks if minimum time is in the dt frame
-            var dr_mag_sq = (dr * dr).reduce_add()
-            if dr_mag_sq * dv_mag_sq - (dvdotdr * dvdotdr)  < self.radius_sq*dv_mag_sq:
-                var new_v1 = 0.5 * ((v1 + v2) + self.cof_of_restitution * dv )
-                var new_v2 = 0.5 * ((v1 + v2) - self.cof_of_restitution * dv )
-                collision_pairs.append((pair[0],pair[1],new_v1, new_v2))
+        var dv_sq = (dv * dv).reduce_add()
+        var dvdr = (dv * dr).reduce_add()
+
+        if dv_sq != 0 and -dvdr > 0.0 and -dvdr <= Float64(self.dt) * dv_sq:
+            
+            var t_min = -dvdr / dv_sq
+            var d_perp = dr + t_min * dv
+            var miss_sq = (d_perp * d_perp).reduce_add()
+            var r_sq = Float64(self.radius_sq)
+            if miss_sq < r_sq:
+                # separation vector at first contact, normalized = line of centers
+                var t_c = t_min - sqrt((r_sq - miss_sq) / dv_sq)
+                var sep = dr + t_c * dv
+                var n = sep / sqrt((sep * sep).reduce_add())
+                var un = (dv * n).reduce_add()   # negative when approaching
+                var delta = (0.5 * (1.0 + Float64(self.cof_of_restitution)) * un * n).cast[DType.float32]()
+                self.vel[a] += delta
+                self.vel[b] -= delta
+                print("collision")
+            
+
+    
+
+    def pos_step(mut self):
+        var next_pos = self.pos.copy()
+        for i in range(len(self.pos)):
+            next_pos[i] = self.pos[i] + (self.vel[i] * self.dt).cast[DType.int32]()
+            for j in range(3):
+                if int_minhalf >= next_pos[i][j] or next_pos[i][j] >= int_maxhalf:
+                    self.vel[i][j] = -self.vel[i][j]
+                    next_pos[i] = self.pos[i]
+        self.pos = next_pos^
+
+    #def calculate_potential_energy(mut self) -> Float64:
+     #   var potential_energy : Float64 = 0
+      #  var n = len(self.pos)
+       # for i in range(n):
+        #    for j in range(n):
+         #       if j == i:
+          #          continue
+           #     else:
+            #        potential_energy += self.singular_potential(1, self.pos[i], self.pos[j])
+        #return potential_energy
+
+    def calculate_kenetic_energy(mut self)-> Float64:
+        var kenetic_energy : Float64 = 0
+        var n = len(self.pos)
+        for i in range(n):
+            kenetic_energy += Float64(0.5*1*(self.vel[i]*self.vel[i]).reduce_add()) #1 is mass
+        #print(kenetic_energy)
+        return kenetic_energy
+
+    def singular_potential( self,
+    m1: Float32,
+    pos1: SIMD[DType.int32, 4],
+    pos2: SIMD[DType.int32, 4]) -> Float64:
+        var r_vec = (pos2 - pos1).cast[DType.float64]()
+        var r = sqrt((r_vec * r_vec).reduce_add()) + Float64(self.epsilon)
+        var inv_re = 1.0 / r
+        return -Float64(self.g*m1)*inv_re
+    
+    #def energy(mut self) raises -> PythonObject:
+     #   print(self.calculate_kenetic_energy())
+      #  return PythonObject(self.calculate_kenetic_energy()+ self.calculate_potential_energy())
+
+    def calculate_potential_energy(mut self) -> Float64:
+        var potential_energy : Float64 = 0
+        var n = len(self.pos)
+        for i in range(n):
+            for j in range(i + 1, n):
+                potential_energy += self.singular_potential(1, self.pos[i], self.pos[j])
+        return potential_energy
+
+    def energy(mut self) raises -> PythonObject:
+        return PythonObject(self.calculate_kenetic_energy() + self.calculate_potential_energy())
+    
 
     def get_positions(self) raises -> PythonObject:
         var result = self.np.empty([self.n, 3], dtype=self.np.int32)
@@ -240,18 +310,10 @@ struct Simulation:
             result[i, 2] = self.vel[i][2]
         return result
 
-    @staticmethod
-    def calculate_center_mass(pos: List[SIMD[DType.int32, 4]], mass: List[Float32]) -> SIMD[DType.float32, 4]:
-        var total_moment = SIMD[DType.float32, 4](0.0, 0.0, 0.0, 0.0)
-        var total_mass: Float32 = 0.0
-        for i in range(len(pos)):
-            var p_float = pos[i].cast[DType.float32]()
-            var m = mass[i]
-            total_moment += p_float * m
-            total_mass += m
-        if total_mass == 0.0:
-            return SIMD[DType.float32, 4](0.0, 0.0, 0.0, 0.0)
-        return total_moment / total_mass
+
+
+    def collision(self) raises -> PythonObject:
+        return 0
 
     @staticmethod
     def norm(r1: SIMD[DType.int32, 4], r2: SIMD[DType.int32, 4]) -> Float32:
@@ -291,7 +353,7 @@ def create_pos_vector_int(n: Int) -> List[SIMD[DType.int32, 4]]:
 
     # Fill the list with random Int32 values within the specified bounds
     for i in range(total_values):
-        raw_data[i] = Int32(random_si64(-10737418, 10737418))
+        raw_data[i] = Int32(random_si64(-10737418, 10737418)) #-10737418, 10737418
 
     var vec = List[SIMD[DType.int32, 4]]()
     vec.resize(n, SIMD[DType.int32, 4](0, 0, 0, 0))
@@ -317,6 +379,8 @@ def PyInit_sim() abi("C") -> PythonObject:
         m.def_function[step]("step")
         m.def_function[get_positions]("get_positions")
         m.def_function[destroy_simulation]("destroy_simulation")
+        m.def_function[energy]("energy")
+        m.def_function[collision]("collision")
         return m.finalize()
     except e:
         abort(String("error creating Python Mojo module:", e))
@@ -359,7 +423,14 @@ def get_positions(args: PythonObject) raises -> PythonObject:
     var ptr = Pointer[Simulation, MutUntrackedOrigin](unsafe_from_address=handle)
     return ptr[].get_positions()
 
-
+def energy(args: PythonObject) raises -> PythonObject:
+    var handle = Int(py=args[0])
+    var ptr = Pointer[Simulation, MutUntrackedOrigin](unsafe_from_address=handle)
+    return ptr[].energy()
+def collision(args: PythonObject) raises -> PythonObject:
+    var handle = Int(py=args[0])
+    var ptr = Pointer[Simulation, MutUntrackedOrigin](unsafe_from_address=handle)
+    return ptr[].collision()
 def destroy_simulation(args: PythonObject) raises -> PythonObject:
     var handle = Int(py=args[0])
     var ptr = Pointer[Simulation, MutUntrackedOrigin](unsafe_from_address=handle)
