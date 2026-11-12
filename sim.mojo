@@ -309,6 +309,22 @@ struct Simulation:
     def energy(mut self) raises -> PythonObject:
         return PythonObject(self.calculate_kenetic_energy() + self.calculate_potential_energy())
     
+    def distance_2_to_center_of_mass(mut self) -> List[Float32]:
+        
+        var distances_2: List[Float32] = List[Float32]()
+        var total_mass: Float32 = Float32(self.n) #initialize
+        var center_of_mass = SIMD[DType.float32, 4](0) #initialize
+
+        for i in range(self.n): #loop over every particle # add the mass to the total mass
+            var r = self.pos[i] # subtract the center because of precision reasons NOTE doesn't overflow if pos is correct
+            center_of_mass += r.cast[DType.float32]()
+
+        center_of_mass = center_of_mass / total_mass # division step
+        for i in range(self.n):
+            var distance = self.pos[i].cast[DType.float32]()-center_of_mass
+            distances_2[i] = (distance*distance).reduce_add()
+        return distances_2^
+
 
     def get_positions(self) raises -> PythonObject:
         var result = self.np.empty([self.n, 3], dtype=self.np.int32)
