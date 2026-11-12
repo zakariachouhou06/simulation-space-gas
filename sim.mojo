@@ -309,21 +309,18 @@ struct Simulation:
     def energy(mut self) raises -> PythonObject:
         return PythonObject(self.calculate_kenetic_energy() + self.calculate_potential_energy())
     
-    def distance_2_to_center_of_mass(mut self) -> List[Float32]:
+    def distance_2_to_center_of_mass(mut self) raises -> PythonObject:
         
-        var distances_2: List[Float32] = List[Float32]()
-        var total_mass: Float32 = Float32(self.n) #initialize
-        var center_of_mass = SIMD[DType.float32, 4](0) #initialize
-
-        for i in range(self.n): #loop over every particle # add the mass to the total mass
-            var r = self.pos[i] # subtract the center because of precision reasons NOTE doesn't overflow if pos is correct
-            center_of_mass += r.cast[DType.float32]()
-
-        center_of_mass = center_of_mass / total_mass # division step
+        var com = SIMD[DType.float64, 4](0)
         for i in range(self.n):
-            var distance = self.pos[i].cast[DType.float32]()-center_of_mass
-            distances_2[i] = (distance*distance).reduce_add()
-        return distances_2^
+            com += self.pos[i].cast[DType.float64]()
+        com = com / Float64(self.n)
+
+        var result = self.np.empty(self.n, dtype=self.np.float64)
+        for i in range(self.n):
+            var d = self.pos[i].cast[DType.float64]() - com
+            result[i] = sqrt((d * d).reduce_add())
+        return result
 
 
     def get_positions(self) raises -> PythonObject:
@@ -416,6 +413,7 @@ def PyInit_sim() abi("C") -> PythonObject:
         m.def_function[destroy_simulation]("destroy_simulation")
         m.def_function[energy]("energy")
         m.def_function[collision]("collision")
+        m.def_function[distance_2_to_center_of_mass]("distance_2_to_center_of_mass")
         return m.finalize()
     except e:
         abort(String("error creating Python Mojo module:", e))
@@ -435,6 +433,7 @@ def create_simulation(args: PythonObject, kwargs: PythonObject) raises -> Python
     var cof_of_restitution = Float32(py=args[7])
     var dt = Float32(py=args[8])
     var side = Float32(py=args[9])
+    var spawn_radius = Float32(py=args[10])
     print(g)
     # Allocate memory, leak ownership so it persists for Python, then write to it
     var allocation = alloc(Layout[Simulation].single())
@@ -443,7 +442,7 @@ def create_simulation(args: PythonObject, kwargs: PythonObject) raises -> Python
         Simulation(
             n=n, c1=c1, epsilon=epsilon, g=g, theta=theta,
             interaction_range_agr=interaction_range_agr, radius=radius,
-            cof_of_restitution=cof_of_restitution, dt=dt, side=side
+            cof_of_restitution=cof_of_restitution, dt=dt, side=side, spawn_radius=spawn_radius
         )
     )
     return PythonObject(Int(ptr))
@@ -475,7 +474,12 @@ def destroy_simulation(args: PythonObject) raises -> PythonObject:
     ptr.unsafe_deinit_pointee()
     ptr.unsafe_free()
 
+
     return PythonObject()
+def distance_2_to_center_of_mass(args: PythonObject) raises -> PythonObject:
+    var handle = Int(py=args[0])
+    var ptr = Pointer[Simulation, MutUntrackedOrigin](unsafe_from_address=handle)
+    return ptr[].distance_2_to_center_of_mass()
 
 #def main() raises:
 #    print("Initializing simulation...")

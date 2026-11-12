@@ -84,7 +84,7 @@ struct tree_node:
 
     def divide(mut self, self_index: Int, keys: List[ParticleKey]) -> List[tree_node]:
             var new_children = List[tree_node]()
-            if self.number_of_particles < 9:
+            if self.number_of_particles < 9 or self.level >= 20:
                 self.is_leaf = True
                 var pos_particles = List[SIMD[DType.int32, 4]]()
                 var masses = List[Float32]()

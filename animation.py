@@ -5,15 +5,17 @@ import pyqtgraph as pg
 import pyqtgraph.opengl as gl
 from pyqtgraph.Qt import QtCore, QtGui
 from simulation import Simulation
+import matplotlib.pyplot as plt
+
 
 
 def get_pos(simulation):
     return np.asarray(simulation.next_frame(), dtype=np.float32).reshape(-1, 3)
 
 r = 7.94*(10**-11)
-spawn_r = 10*r/np.sqrt(3)
+spawn_r = 120*r/np.sqrt(3)
 
-simulation = Simulation(side=20*spawn_r, spawn_radius=spawn_r, radius=r, epsilon=10*r)
+simulation = Simulation(side=15*spawn_r, spawn_radius=spawn_r, radius=r, epsilon=10*r)
 
 app = pg.mkQApp()
 view = gl.GLViewWidget()
@@ -73,6 +75,8 @@ view.addItem(gl.GLLinePlotItem(
     mode="lines",
 ))
 
+
+
 # Text labels at the axis ends
 for idx, rgb in axes:
     p = [0.0, 0.0, 0.0]
@@ -128,6 +132,53 @@ def record_energy():
         for lst in e_hist:
             del lst[0]
 
+# ---------------- Live distance stats (meters) ----------------
+HIST_EVERY = 5
+K = 2 * 1073741823 / simulation.side                 # lattice units per meter
+r_max = simulation.side * np.sqrt(3) / 2             # box center to corner, meters
+hist_edges = np.linspace(0, r_max, 81)
+
+def make_win(title, xlabel, xunits, ylabel, yunits):
+    w = pg.PlotWidget(title=title)
+    w.resize(700, 400)
+    w.setLabel("bottom", xlabel, units=xunits)
+    w.setLabel("left", ylabel, units=yunits)
+    w.showGrid(x=True, y=True)
+    w.show()
+    return w
+
+# histogram of distance
+hist_win = make_win("Distance to center of mass", "distance", "m", "count", None)
+hist_bars = pg.BarGraphItem(
+    x0=hist_edges[:-1], x1=hist_edges[1:],
+    height=np.zeros(len(hist_edges) - 1),
+    brush=(0, 255, 255, 180), pen=None,
+)
+hist_win.addItem(hist_bars)
+
+# mean distance vs time
+mean_win = make_win("Mean distance to center of mass", "simulation time", "s", "mean distance", "m")
+mean_curve = mean_win.plot(pen="y")
+
+# standard deviation vs time
+std_win = make_win("Standard deviation of distance", "simulation time", "s", "std of distance", "m")
+std_curve = std_win.plot(pen="m")
+
+st_hist, mean_hist, std_hist = [], [], []
+
+
+def update_hist():
+    d = simulation.distance_2_to_center_of_mass() / K     # meters
+    counts, _ = np.histogram(d, bins=hist_edges)
+    hist_bars.setOpts(height=counts)
+
+    st_hist.append(frame * simulation.dt)
+    mean_hist.append(d.mean())
+    std_hist.append(d.std())
+    if len(st_hist) > MAX_POINTS:
+        del st_hist[0], mean_hist[0], std_hist[0]
+    mean_curve.setData(st_hist, mean_hist)
+    std_curve.setData(st_hist, std_hist)
 
 def update():
     global frame
@@ -137,6 +188,9 @@ def update():
         record_energy()
         for c, lst in zip(curves, e_hist):
             c.setData(t_hist, lst)
+    
+    if frame % HIST_EVERY == 0:
+        update_hist()
 
 
 timer = QtCore.QTimer()
