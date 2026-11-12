@@ -3,23 +3,28 @@ import mojo.importer
 import sim
 import numpy as np
 
+mass = (10**17)*1.6735575e-27
 class Simulation:
     def __init__(
         self,
-        n = 500,
-        c1 = 000000000000,
-        epsilon = 50000,
-        g = 0.03*2147483647.0**3,
+        n = 1000,
+        c1 = 1,
+        epsilon = 500000,
+        g = 6.67430*(10**-11)*mass,
         theta = 0.0000004,
         interaction_range_agr = 1,
-        radius = 100000.0,
-        cof_of_restitution = 0.6,
-        dt = 0.000004
-    ):
+        radius = 7.94*(10**-11),
+        cof_of_restitution = 1,
+        dt = 0.0000004,
+        spawn_radius = 1,
+        side = 2
+        ):
+
         # Pack parameters into the tuple/dict structure expected by Mojo
-        args = (n, c1, epsilon, g, theta, interaction_range_agr, radius, cof_of_restitution, dt)
+        args = (n, c1, epsilon, g, theta, interaction_range_agr, radius, cof_of_restitution, dt, side)
         self.radius = radius
         self.dt = dt
+        self.side = side
         kwargs = {}
         self.ptr = sim.create_simulation(args, kwargs)
 

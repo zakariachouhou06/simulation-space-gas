@@ -48,18 +48,22 @@ struct Simulation:
     var radius_sq: Float32
     var cof_of_restitution: Float32
     var dt: Float32
+    var spawn_radius: Int64
 
     def __init__(
         out self,
         n: Int,
         c1: Float32,
         epsilon: Float32 = 400.0,
-        g: Float32 = Float32(0.3*2147483647.0**3),
+        g: Float32 = Float32(0.03*2147483647.0**3),
         theta: Float32 = 0.04,
         interaction_range_agr: Float32 = 0.9, #number of the max theoretical range low = better preformance but more missed collisions
         radius: Float32 = 0.001,
         cof_of_restitution: Float32 = 0.5,
-        dt: Float32 = 0.4
+        dt: Float32 = 0.04,
+        side: Float32 = 1,
+        spawn_radius: Float32 = 1
+
     ) raises:
         seed()
         self.n = n
@@ -67,18 +71,20 @@ struct Simulation:
         self.t = 0.0
 
         # Assign configuration parameters
-        self.epsilon = epsilon
-        self.g = g
+        var k = 2.0 * Float64(int_maxhalf) / Float64(side)
+        self.epsilon = Float32(Float64(epsilon) * k)
+        self.g       = Float32(Float64(g) * k * k * k)
+        self.radius  = Float32(Float64(radius) * k)
+        self.spawn_radius = Int64(Float64(spawn_radius) * k)
+
         self.theta = theta
         self.theta_rcp_sq = Int64(1/(theta*theta))
-        self.interaction_range_agr =interaction_range_agr
-        self.radius = radius
-        self.radius_sq = radius*radius
+        self.interaction_range_agr = interaction_range_agr
+        self.radius_sq = self.radius*self.radius
         self.cof_of_restitution = cof_of_restitution
-        self.dt = dt
+        self.dt = dt        
 
         # Positions
-        self.pos = create_pos_vector_int(n)
 
         # Velocities
         try:
@@ -86,6 +92,7 @@ struct Simulation:
         except:
             print("numpy doesn't work you stupid")
             self.np = PythonObject()
+
 
         #initialize interaction range
         self.interaction_range= Int64(self.dt* c1 * interaction_range_agr)
@@ -103,6 +110,8 @@ struct Simulation:
             SIMD[DType.float32, 4](0.0, 0.0, 0.0, 0.0)
         )
 
+        self.pos = self.create_pos_vector_int(self.spawn_radius, n)
+
     def step(mut self):
         self.run_timestep()
 
@@ -118,6 +127,8 @@ struct Simulation:
             var p_vec = keys[i].vector # Note index 3 is the id
             var id = keys[i].id
             self.acc[id] = self.compute_interactions(tree, 0, i,id,p_vec, keys, posible_collisions_pairs)
+        
+        print(self.acc[1])
 
         # Updating velocities
         for i in range(len(self.vel)):
@@ -166,7 +177,7 @@ struct Simulation:
         var r_vec = (pos2 - pos1).cast[DType.float32]()
         var r = sqrt((r_vec * r_vec).reduce_add()) + self.epsilon
         var inv_re = 1.0 / r
-        var direction = r_vec * inv_re
+        var direction = r_vec / (r - self.epsilon + 1)
         var scale = (self.g * inv_re) * (m1 * inv_re)
         var acceleration = scale * direction
         return acceleration
@@ -222,7 +233,7 @@ struct Simulation:
 
         if dv_sq != 0 and -dvdr > 0.0 and -dvdr <= Float64(self.dt) * dv_sq:
             
-            var t_min = -dvdr / dv_sq
+            var t_min = (-dvdr / dv_sq)
             var d_perp = dr + t_min * dv
             var miss_sq = (d_perp * d_perp).reduce_add()
             var r_sq = Float64(self.radius_sq)
@@ -233,9 +244,13 @@ struct Simulation:
                 var n = sep / sqrt((sep * sep).reduce_add())
                 var un = (dv * n).reduce_add()   # negative when approaching
                 var delta = (0.5 * (1.0 + Float64(self.cof_of_restitution)) * un * n).cast[DType.float32]()
-                self.vel[a] += delta
-                self.vel[b] -= delta
-                print("collision")
+                var v1_new = self.vel[a]+delta
+                var v2_new = self.vel[b]-delta
+                self.pos[a] += (Float32(t_min) * (self.vel[a]-v1_new)).cast[DType.int32]()
+                self.pos[b] += (Float32(t_min) * (self.vel[b]-v2_new)).cast[DType.int32]()
+                self.vel[a] = v1_new
+                self.vel[b] = v2_new
+                #print("collision")
             
 
     
@@ -248,6 +263,7 @@ struct Simulation:
                 if int_minhalf >= next_pos[i][j] or next_pos[i][j] >= int_maxhalf:
                     self.vel[i][j] = -self.vel[i][j]
                     next_pos[i] = self.pos[i]
+        #print(self.pos[1])
         self.pos = next_pos^
 
     #def calculate_potential_energy(mut self) -> Float64:
@@ -275,8 +291,8 @@ struct Simulation:
     pos2: SIMD[DType.int32, 4]) -> Float64:
         var r_vec = (pos2 - pos1).cast[DType.float64]()
         var r = sqrt((r_vec * r_vec).reduce_add()) + Float64(self.epsilon)
-        var inv_re = 1.0 / r
-        return -Float64(self.g*m1)*inv_re
+        var inv = 1.0 / r
+        return -Float64(self.g*m1)* inv
     
     #def energy(mut self) raises -> PythonObject:
      #   print(self.calculate_kenetic_energy())
@@ -328,6 +344,34 @@ struct Simulation:
         var diff = r1 - r2
         var distsq = (diff * diff).reduce_add()
         return sqrt(distsq)
+    
+    @staticmethod
+    def create_pos_vector_int(spawn_radius: Int64, n: Int) -> List[SIMD[DType.int32, 4]]:
+        """Helper function to generate a Mojo SIMD vector list with random uint32 values."""
+        # We need 4 values for each SIMD vector (3 random + 1 zero)
+        var total_values = n * 4
+        var raw_data = List[Int32](capacity=total_values)
+        raw_data.resize(total_values, 0)
+
+        var width = min(spawn_radius, Int64(int_maxhalf))
+
+        # Fill the list with random Int32 values within the specified bounds
+        for i in range(total_values):
+            raw_data[i] = Int32(random_si64(-width, width)) #-10737418, 10737418
+
+        var vec = List[SIMD[DType.int32, 4]]()
+        vec.resize(n, SIMD[DType.int32, 4](0, 0, 0, 0))
+
+        for i in range(n):
+            var base = i * 4
+            vec[i] = SIMD[DType.int32, 4](
+                raw_data[base],
+                raw_data[base + 1],
+                raw_data[base + 2],
+                0
+            )
+
+        return vec^
 
 
 def create_vel_vector_float(n: Int, py_array: PythonObject) raises -> List[SIMD[DType.float32, 4]]:
@@ -342,31 +386,6 @@ def create_vel_vector_float(n: Int, py_array: PythonObject) raises -> List[SIMD[
             Float32(py=py_array[i][2]),
             0.0
         )
-    return vec^
-
-def create_pos_vector_int(n: Int) -> List[SIMD[DType.int32, 4]]:
-    """Helper function to generate a Mojo SIMD vector list with random uint32 values."""
-    # We need 4 values for each SIMD vector (3 random + 1 zero)
-    var total_values = n * 4
-    var raw_data = List[Int32](capacity=total_values)
-    raw_data.resize(total_values, 0)
-
-    # Fill the list with random Int32 values within the specified bounds
-    for i in range(total_values):
-        raw_data[i] = Int32(random_si64(-10737418, 10737418)) #-10737418, 10737418
-
-    var vec = List[SIMD[DType.int32, 4]]()
-    vec.resize(n, SIMD[DType.int32, 4](0, 0, 0, 0))
-
-    for i in range(n):
-        var base = i * 4
-        vec[i] = SIMD[DType.int32, 4](
-            raw_data[base],
-            raw_data[base + 1],
-            raw_data[base + 2],
-            0
-        )
-
     return vec^
 
 # --- PYTHON MODULE BUILDER INTEGRATION ---
@@ -399,6 +418,7 @@ def create_simulation(args: PythonObject, kwargs: PythonObject) raises -> Python
     var radius = Float32(py=args[6])
     var cof_of_restitution = Float32(py=args[7])
     var dt = Float32(py=args[8])
+    var side = Float32(py=args[9])
     print(g)
     # Allocate memory, leak ownership so it persists for Python, then write to it
     var allocation = alloc(Layout[Simulation].single())
@@ -407,7 +427,7 @@ def create_simulation(args: PythonObject, kwargs: PythonObject) raises -> Python
         Simulation(
             n=n, c1=c1, epsilon=epsilon, g=g, theta=theta,
             interaction_range_agr=interaction_range_agr, radius=radius,
-            cof_of_restitution=cof_of_restitution, dt=dt
+            cof_of_restitution=cof_of_restitution, dt=dt, side=side
         )
     )
     return PythonObject(Int(ptr))

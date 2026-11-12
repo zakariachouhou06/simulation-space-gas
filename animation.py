@@ -10,8 +10,10 @@ from simulation import Simulation
 def get_pos(simulation):
     return np.asarray(simulation.next_frame(), dtype=np.float32).reshape(-1, 3)
 
+r = 7.94*(10**-11)
+spawn_r = 10*r/np.sqrt(3)
 
-simulation = Simulation()
+simulation = Simulation(side=20*spawn_r, spawn_radius=spawn_r, radius=r, epsilon=10*r)
 
 app = pg.mkQApp()
 view = gl.GLViewWidget()
@@ -82,7 +84,7 @@ for idx, rgb in axes:
     view.addItem(gl.GLTextItem(pos=np.array(n), text=f"-{names[idx]}", color=col))
 
 pos = get_pos(simulation)
-particle_size = float(simulation.radius)
+particle_size = float(simulation.radius*(2.0 * 1073741823 / simulation.side))
 
 scatter = gl.GLScatterPlotItem(
     pos=pos,
