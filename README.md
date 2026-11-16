@@ -1,3 +1,2 @@
 # simulation-space-gas
-simulation space gas 
-test test test
+Feel free to use this code for non-evil purposes
